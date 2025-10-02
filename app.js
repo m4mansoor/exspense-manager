@@ -25,7 +25,7 @@ const initialData = {
   capitalTypes: ["Salary", "Freelance", "Business", "Investment", "Rental", "Gift", "Bonus", "Other"]
 };
 
-// Simple localStorage helper functions - ONLY ADDED PART
+// Simple localStorage helper functions
 function saveData(key, data) {
   try {
     localStorage.setItem(key, JSON.stringify(data));
@@ -43,7 +43,7 @@ function loadData(key, defaultValue) {
   }
 }
 
-// Application State - MODIFIED TO USE LOCALSTORAGE
+// Application State with localStorage
 let appState = {
   capitalEntries: loadData('capitalEntries', [...initialData.capitalEntries]),
   plannedExpenses: loadData('plannedExpenses', [...initialData.plannedExpenses]),
@@ -54,7 +54,9 @@ let appState = {
   capitalTypes: [...initialData.capitalTypes],
   nextPlannedId: loadData('nextPlannedId', Math.max(...initialData.plannedExpenses.map(e => e.id), 0) + 1),
   nextPaidId: loadData('nextPaidId', Math.max(...initialData.paidExpenses.map(e => e.id), 0) + 1),
-  nextCapitalId: loadData('nextCapitalId', Math.max(...initialData.capitalEntries.map(e => e.id), 0) + 1)
+  nextCapitalId: loadData('nextCapitalId', Math.max(...initialData.capitalEntries.map(e => e.id), 0) + 1),
+  editingEntry: null,
+  editingType: null
 };
 
 // Charts
@@ -89,9 +91,9 @@ function setupEventListeners() {
   const cancelCapitalBtn = document.getElementById('cancelCapitalBtn');
   const capitalForm = document.getElementById('capitalForm');
 
-  if (addCapitalBtn) addCapitalBtn.addEventListener('click', () => openModal(addCapitalModal));
+  if (addCapitalBtn) addCapitalBtn.addEventListener('click', () => openAddCapitalModal());
   if (cancelCapitalBtn) cancelCapitalBtn.addEventListener('click', () => closeModal(addCapitalModal));
-  if (capitalForm) capitalForm.addEventListener('submit', handleAddCapital);
+  if (capitalForm) capitalForm.addEventListener('submit', handleCapitalForm);
 
   // Add Planned Expense Modal
   const addPlannedBtn = document.getElementById('addPlannedBtn');
@@ -99,9 +101,9 @@ function setupEventListeners() {
   const cancelPlannedBtn = document.getElementById('cancelPlannedBtn');
   const plannedForm = document.getElementById('plannedForm');
 
-  if (addPlannedBtn) addPlannedBtn.addEventListener('click', () => openModal(addPlannedModal));
+  if (addPlannedBtn) addPlannedBtn.addEventListener('click', () => openAddPlannedModal());
   if (cancelPlannedBtn) cancelPlannedBtn.addEventListener('click', () => closeModal(addPlannedModal));
-  if (plannedForm) plannedForm.addEventListener('submit', handleAddPlannedExpense);
+  if (plannedForm) plannedForm.addEventListener('submit', handlePlannedForm);
 
   // Add Paid Expense Modal
   const addPaidBtn = document.getElementById('addPaidBtn');
@@ -109,9 +111,9 @@ function setupEventListeners() {
   const cancelPaidBtn = document.getElementById('cancelPaidBtn');
   const paidForm = document.getElementById('paidForm');
 
-  if (addPaidBtn) addPaidBtn.addEventListener('click', () => openModal(addPaidModal));
+  if (addPaidBtn) addPaidBtn.addEventListener('click', () => openAddPaidModal());
   if (cancelPaidBtn) cancelPaidBtn.addEventListener('click', () => closeModal(addPaidModal));
-  if (paidForm) paidForm.addEventListener('submit', handleAddPaidExpense);
+  if (paidForm) paidForm.addEventListener('submit', handlePaidForm);
 
   // Export functionality
   const exportBtn = document.getElementById('exportBtn');
@@ -124,7 +126,7 @@ function setupEventListeners() {
   // Filter functionality
   const filterBtns = document.querySelectorAll('.filter-btn');
   filterBtns.forEach(btn => {
-    btn.addEventListener('click', () => handleFilter(btn.dataset.filter));
+    btn.addEventListener('click', (e) => handleFilter(e.target.dataset.filter));
   });
 }
 
@@ -135,15 +137,142 @@ function openModal(modal) {
 
 function closeModal(modal) {
   if (modal) modal.classList.remove('modal--active');
+  // Reset editing state
+  appState.editingEntry = null;
+  appState.editingType = null;
 }
 
-// Add Capital Handler - MODIFIED TO SAVE
-function handleAddCapital(e) {
+// Open Modal Functions
+function openAddCapitalModal() {
+  appState.editingEntry = null;
+  appState.editingType = null;
+  const modal = document.getElementById('addCapitalModal');
+  const form = document.getElementById('capitalForm');
+  const modalTitle = modal.querySelector('.modal-header h2');
+  const submitBtn = modal.querySelector('button[type="submit"]');
+
+  if (modalTitle) modalTitle.innerHTML = '<i class="fas fa-plus"></i> Add Capital Entry';
+  if (submitBtn) submitBtn.textContent = 'Add Capital';
+  if (form) form.reset();
+
+  // Set today's date as default
+  const dateInput = document.getElementById('capitalDate');
+  if (dateInput) dateInput.value = new Date().toISOString().split('T')[0];
+
+  openModal(modal);
+}
+
+function openEditCapitalModal(capitalId) {
+  const capital = appState.capitalEntries.find(e => e.id === capitalId);
+  if (!capital) return;
+
+  appState.editingEntry = capital;
+  appState.editingType = 'capital';
+
+  const modal = document.getElementById('addCapitalModal');
+  const modalTitle = modal.querySelector('.modal-header h2');
+  const submitBtn = modal.querySelector('button[type="submit"]');
+
+  if (modalTitle) modalTitle.innerHTML = '<i class="fas fa-edit"></i> Edit Capital Entry';
+  if (submitBtn) submitBtn.textContent = 'Update Capital';
+
+  // Populate form with existing data
+  document.getElementById('capitalSource').value = capital.source;
+  document.getElementById('capitalAmount').value = capital.amount;
+  document.getElementById('capitalType').value = capital.type;
+  document.getElementById('capitalDate').value = capital.date;
+  document.getElementById('capitalDescription').value = capital.description || '';
+
+  openModal(modal);
+}
+
+function openAddPlannedModal() {
+  appState.editingEntry = null;
+  appState.editingType = null;
+  const modal = document.getElementById('addPlannedModal');
+  const form = document.getElementById('plannedForm');
+  const modalTitle = modal.querySelector('.modal-header h2');
+  const submitBtn = modal.querySelector('button[type="submit"]');
+
+  if (modalTitle) modalTitle.innerHTML = '<i class="fas fa-plus"></i> Add Planned Expense';
+  if (submitBtn) submitBtn.textContent = 'Add Planned Expense';
+  if (form) form.reset();
+
+  openModal(modal);
+}
+
+function openEditPlannedModal(plannedId) {
+  const planned = appState.plannedExpenses.find(e => e.id === plannedId);
+  if (!planned) return;
+
+  appState.editingEntry = planned;
+  appState.editingType = 'planned';
+
+  const modal = document.getElementById('addPlannedModal');
+  const modalTitle = modal.querySelector('.modal-header h2');
+  const submitBtn = modal.querySelector('button[type="submit"]');
+
+  if (modalTitle) modalTitle.innerHTML = '<i class="fas fa-edit"></i> Edit Planned Expense';
+  if (submitBtn) submitBtn.textContent = 'Update Expense';
+
+  // Populate form with existing data
+  document.getElementById('plannedName').value = planned.name;
+  document.getElementById('plannedAmount').value = planned.amount;
+  document.getElementById('plannedCategory').value = planned.category;
+  document.getElementById('plannedPriority').value = planned.priority;
+
+  openModal(modal);
+}
+
+function openAddPaidModal() {
+  appState.editingEntry = null;
+  appState.editingType = null;
+  const modal = document.getElementById('addPaidModal');
+  const form = document.getElementById('paidForm');
+  const modalTitle = modal.querySelector('.modal-header h2');
+  const submitBtn = modal.querySelector('button[type="submit"]');
+
+  if (modalTitle) modalTitle.innerHTML = '<i class="fas fa-plus"></i> Add Paid Expense';
+  if (submitBtn) submitBtn.textContent = 'Add Paid Expense';
+  if (form) form.reset();
+
+  // Set today's date as default
+  const dateInput = document.getElementById('paidDate');
+  if (dateInput) dateInput.value = new Date().toISOString().split('T')[0];
+
+  openModal(modal);
+}
+
+function openEditPaidModal(paidId) {
+  const paid = appState.paidExpenses.find(e => e.id === paidId);
+  if (!paid) return;
+
+  appState.editingEntry = paid;
+  appState.editingType = 'paid';
+
+  const modal = document.getElementById('addPaidModal');
+  const modalTitle = modal.querySelector('.modal-header h2');
+  const submitBtn = modal.querySelector('button[type="submit"]');
+
+  if (modalTitle) modalTitle.innerHTML = '<i class="fas fa-edit"></i> Edit Paid Expense';
+  if (submitBtn) submitBtn.textContent = 'Update Expense';
+
+  // Populate form with existing data
+  document.getElementById('paidName').value = paid.name;
+  document.getElementById('paidAmount').value = paid.amount;
+  document.getElementById('paidCategory').value = paid.category;
+  document.getElementById('paidDate').value = paid.datePaid;
+  document.getElementById('paidPaymentMethod').value = paid.paymentMethod;
+
+  openModal(modal);
+}
+
+// Form Handlers
+function handleCapitalForm(e) {
   e.preventDefault();
   const formData = new FormData(e.target);
 
-  const newCapital = {
-    id: appState.nextCapitalId++,
+  const capitalData = {
     source: formData.get('source'),
     amount: parseInt(formData.get('amount')),
     date: formData.get('date'),
@@ -151,12 +280,23 @@ function handleAddCapital(e) {
     type: formData.get('type')
   };
 
-  appState.capitalEntries.push(newCapital);
+  if (appState.editingEntry && appState.editingType === 'capital') {
+    // Edit existing capital
+    const index = appState.capitalEntries.findIndex(e => e.id === appState.editingEntry.id);
+    if (index !== -1) {
+      appState.capitalEntries[index] = { ...appState.editingEntry, ...capitalData };
+    }
+  } else {
+    // Add new capital
+    const newCapital = {
+      id: appState.nextCapitalId++,
+      ...capitalData
+    };
+    appState.capitalEntries.push(newCapital);
+    saveData('nextCapitalId', appState.nextCapitalId);
+  }
 
-  // Save to localStorage
   saveData('capitalEntries', appState.capitalEntries);
-  saveData('nextCapitalId', appState.nextCapitalId);
-
   updateDashboard();
   renderCapitalTable();
   updateCharts();
@@ -165,26 +305,35 @@ function handleAddCapital(e) {
   e.target.reset();
 }
 
-// Add Planned Expense Handler - MODIFIED TO SAVE
-function handleAddPlannedExpense(e) {
+function handlePlannedForm(e) {
   e.preventDefault();
   const formData = new FormData(e.target);
 
-  const newExpense = {
-    id: appState.nextPlannedId++,
+  const plannedData = {
     name: formData.get('name'),
     amount: parseInt(formData.get('amount')),
     category: formData.get('category'),
-    priority: formData.get('priority'),
-    dateAdded: new Date().toISOString().split('T')[0]
+    priority: formData.get('priority')
   };
 
-  appState.plannedExpenses.push(newExpense);
+  if (appState.editingEntry && appState.editingType === 'planned') {
+    // Edit existing planned expense
+    const index = appState.plannedExpenses.findIndex(e => e.id === appState.editingEntry.id);
+    if (index !== -1) {
+      appState.plannedExpenses[index] = { ...appState.editingEntry, ...plannedData };
+    }
+  } else {
+    // Add new planned expense
+    const newExpense = {
+      id: appState.nextPlannedId++,
+      ...plannedData,
+      dateAdded: new Date().toISOString().split('T')[0]
+    };
+    appState.plannedExpenses.push(newExpense);
+    saveData('nextPlannedId', appState.nextPlannedId);
+  }
 
-  // Save to localStorage
   saveData('plannedExpenses', appState.plannedExpenses);
-  saveData('nextPlannedId', appState.nextPlannedId);
-
   updateDashboard();
   renderPlannedExpensesTable();
   updateCharts();
@@ -193,13 +342,11 @@ function handleAddPlannedExpense(e) {
   e.target.reset();
 }
 
-// Add Paid Expense Handler - MODIFIED TO SAVE
-function handleAddPaidExpense(e) {
+function handlePaidForm(e) {
   e.preventDefault();
   const formData = new FormData(e.target);
 
-  const newExpense = {
-    id: appState.nextPaidId++,
+  const paidData = {
     name: formData.get('name'),
     amount: parseInt(formData.get('amount')),
     category: formData.get('category'),
@@ -207,12 +354,23 @@ function handleAddPaidExpense(e) {
     paymentMethod: formData.get('paymentMethod')
   };
 
-  appState.paidExpenses.push(newExpense);
+  if (appState.editingEntry && appState.editingType === 'paid') {
+    // Edit existing paid expense
+    const index = appState.paidExpenses.findIndex(e => e.id === appState.editingEntry.id);
+    if (index !== -1) {
+      appState.paidExpenses[index] = { ...appState.editingEntry, ...paidData };
+    }
+  } else {
+    // Add new paid expense
+    const newExpense = {
+      id: appState.nextPaidId++,
+      ...paidData
+    };
+    appState.paidExpenses.push(newExpense);
+    saveData('nextPaidId', appState.nextPaidId);
+  }
 
-  // Save to localStorage
   saveData('paidExpenses', appState.paidExpenses);
-  saveData('nextPaidId', appState.nextPaidId);
-
   updateDashboard();
   renderPaidExpensesTable();
   updateCharts();
@@ -221,7 +379,7 @@ function handleAddPaidExpense(e) {
   e.target.reset();
 }
 
-// Mark Planned Expense as Paid - MODIFIED TO SAVE
+// Mark Planned Expense as Paid
 function markAsPaid(plannedId) {
   const plannedExpense = appState.plannedExpenses.find(e => e.id === plannedId);
   if (!plannedExpense) return;
@@ -238,7 +396,6 @@ function markAsPaid(plannedId) {
   appState.paidExpenses.push(paidExpense);
   appState.plannedExpenses = appState.plannedExpenses.filter(e => e.id !== plannedId);
 
-  // Save to localStorage
   saveData('plannedExpenses', appState.plannedExpenses);
   saveData('paidExpenses', appState.paidExpenses);
   saveData('nextPaidId', appState.nextPaidId);
@@ -249,7 +406,7 @@ function markAsPaid(plannedId) {
   updateCharts();
 }
 
-// Delete Functions - MODIFIED TO SAVE
+// Delete Functions
 function deleteCapital(capitalId) {
   if (confirm('Are you sure you want to delete this capital entry?')) {
     appState.capitalEntries = appState.capitalEntries.filter(e => e.id !== capitalId);
@@ -326,9 +483,12 @@ function renderCapitalTable() {
       <td><span class="amount amount--positive">${formatPKR(entry.amount)}</span></td>
       <td><span class="badge badge--success">${entry.type}</span></td>
       <td>${entry.date}</td>
-      <td>${entry.description}</td>
+      <td>${entry.description || ''}</td>
       <td>
-        <button class="btn btn--sm btn--danger" onclick="deleteCapital(${entry.id})">
+        <button class="btn btn--sm btn--primary" onclick="openEditCapitalModal(${entry.id})" title="Edit">
+          <i class="fas fa-edit"></i>
+        </button>
+        <button class="btn btn--sm btn--danger" onclick="deleteCapital(${entry.id})" title="Delete">
           <i class="fas fa-trash"></i>
         </button>
       </td>
@@ -348,10 +508,13 @@ function renderPlannedExpensesTable() {
       <td><span class="badge badge--${getPriorityClass(expense.priority)}">${expense.priority}</span></td>
       <td>${expense.dateAdded}</td>
       <td>
-        <button class="btn btn--sm btn--success" onclick="markAsPaid(${expense.id})">
-          <i class="fas fa-check"></i> Mark Paid
+        <button class="btn btn--sm btn--success" onclick="markAsPaid(${expense.id})" title="Mark as Paid">
+          <i class="fas fa-check"></i>
         </button>
-        <button class="btn btn--sm btn--danger" onclick="deletePlannedExpense(${expense.id})">
+        <button class="btn btn--sm btn--primary" onclick="openEditPlannedModal(${expense.id})" title="Edit">
+          <i class="fas fa-edit"></i>
+        </button>
+        <button class="btn btn--sm btn--danger" onclick="deletePlannedExpense(${expense.id})" title="Delete">
           <i class="fas fa-trash"></i>
         </button>
       </td>
@@ -371,7 +534,10 @@ function renderPaidExpensesTable() {
       <td>${expense.datePaid}</td>
       <td><span class="badge badge--info">${expense.paymentMethod}</span></td>
       <td>
-        <button class="btn btn--sm btn--danger" onclick="deletePaidExpense(${expense.id})">
+        <button class="btn btn--sm btn--primary" onclick="openEditPaidModal(${expense.id})" title="Edit">
+          <i class="fas fa-edit"></i>
+        </button>
+        <button class="btn btn--sm btn--danger" onclick="deletePaidExpense(${expense.id})" title="Delete">
           <i class="fas fa-trash"></i>
         </button>
       </td>
@@ -401,12 +567,19 @@ function populateFormOptions() {
   }
 
   // Categories for both planned and paid forms
-  const categorySelects = document.querySelectorAll('select[name="category"]');
-  categorySelects.forEach(select => {
-    select.innerHTML = appState.categories.map(category => 
+  const plannedCategorySelect = document.getElementById('plannedCategory');
+  if (plannedCategorySelect) {
+    plannedCategorySelect.innerHTML = appState.categories.map(category => 
       `<option value="${category}">${category}</option>`
     ).join('');
-  });
+  }
+
+  const paidCategorySelect = document.getElementById('paidCategory');
+  if (paidCategorySelect) {
+    paidCategorySelect.innerHTML = appState.categories.map(category => 
+      `<option value="${category}">${category}</option>`
+    ).join('');
+  }
 
   // Priorities
   const prioritySelect = document.getElementById('plannedPriority');
@@ -557,7 +730,10 @@ function handleFilter(filter) {
   document.querySelectorAll('.filter-btn').forEach(btn => {
     btn.classList.remove('filter-btn--active');
   });
-  event.target.classList.add('filter-btn--active');
+
+  // Find and activate the clicked button
+  const activeBtn = document.querySelector(`[data-filter="${filter}"]`);
+  if (activeBtn) activeBtn.classList.add('filter-btn--active');
 
   // Apply filter logic
   const sections = document.querySelectorAll('.content-section');
@@ -595,7 +771,7 @@ function generateCSV(data) {
 
   // Add capital entries
   data.capital.forEach(entry => {
-    csv += `Capital,"${entry.source}",${entry.amount},"${entry.type}","${entry.date}","${entry.description}"\n`;
+    csv += `Capital,"${entry.source}",${entry.amount},"${entry.type}","${entry.date}","${entry.description || ''}"\n`;
   });
 
   // Add planned expenses
