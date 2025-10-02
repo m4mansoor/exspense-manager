@@ -25,44 +25,36 @@ const initialData = {
   capitalTypes: ["Salary", "Freelance", "Business", "Investment", "Rental", "Gift", "Bonus", "Other"]
 };
 
-// Data persistence functions
-function saveToStorage(key, data) {
+// Simple localStorage helper functions - ONLY ADDED PART
+function saveData(key, data) {
   try {
     localStorage.setItem(key, JSON.stringify(data));
-  } catch (error) {
-    console.warn('Could not save to localStorage:', error);
+  } catch (e) {
+    console.warn('Cannot save to localStorage');
   }
 }
 
-function loadFromStorage(key, defaultData) {
+function loadData(key, defaultValue) {
   try {
-    const stored = localStorage.getItem(key);
-    return stored ? JSON.parse(stored) : defaultData;
-  } catch (error) {
-    console.warn('Could not load from localStorage:', error);
-    return defaultData;
+    const saved = localStorage.getItem(key);
+    return saved ? JSON.parse(saved) : defaultValue;
+  } catch (e) {
+    return defaultValue;
   }
 }
 
-function resetToDefaults() {
-  if (confirm('This will reset all data to default values. Are you sure?')) {
-    localStorage.clear();
-    location.reload();
-  }
-}
-
-// Application State with localStorage persistence
+// Application State - MODIFIED TO USE LOCALSTORAGE
 let appState = {
-  capitalEntries: loadFromStorage('capitalEntries', [...initialData.capitalEntries]),
-  plannedExpenses: loadFromStorage('plannedExpenses', [...initialData.plannedExpenses]),
-  paidExpenses: loadFromStorage('paidExpenses', [...initialData.paidExpenses]),
+  capitalEntries: loadData('capitalEntries', [...initialData.capitalEntries]),
+  plannedExpenses: loadData('plannedExpenses', [...initialData.plannedExpenses]),
+  paidExpenses: loadData('paidExpenses', [...initialData.paidExpenses]),
   categories: [...initialData.categories],
   priorities: [...initialData.priorities],
   paymentMethods: [...initialData.paymentMethods],
   capitalTypes: [...initialData.capitalTypes],
-  nextPlannedId: loadFromStorage('nextPlannedId', Math.max(...initialData.plannedExpenses.map(e => e.id), 0) + 1),
-  nextPaidId: loadFromStorage('nextPaidId', Math.max(...initialData.paidExpenses.map(e => e.id), 0) + 1),
-  nextCapitalId: loadFromStorage('nextCapitalId', Math.max(...initialData.capitalEntries.map(e => e.id), 0) + 1)
+  nextPlannedId: loadData('nextPlannedId', Math.max(...initialData.plannedExpenses.map(e => e.id), 0) + 1),
+  nextPaidId: loadData('nextPaidId', Math.max(...initialData.paidExpenses.map(e => e.id), 0) + 1),
+  nextCapitalId: loadData('nextCapitalId', Math.max(...initialData.capitalEntries.map(e => e.id), 0) + 1)
 };
 
 // Charts
@@ -97,9 +89,9 @@ function setupEventListeners() {
   const cancelCapitalBtn = document.getElementById('cancelCapitalBtn');
   const capitalForm = document.getElementById('capitalForm');
 
-  addCapitalBtn?.addEventListener('click', () => openModal(addCapitalModal));
-  cancelCapitalBtn?.addEventListener('click', () => closeModal(addCapitalModal));
-  capitalForm?.addEventListener('submit', handleAddCapital);
+  if (addCapitalBtn) addCapitalBtn.addEventListener('click', () => openModal(addCapitalModal));
+  if (cancelCapitalBtn) cancelCapitalBtn.addEventListener('click', () => closeModal(addCapitalModal));
+  if (capitalForm) capitalForm.addEventListener('submit', handleAddCapital);
 
   // Add Planned Expense Modal
   const addPlannedBtn = document.getElementById('addPlannedBtn');
@@ -107,9 +99,9 @@ function setupEventListeners() {
   const cancelPlannedBtn = document.getElementById('cancelPlannedBtn');
   const plannedForm = document.getElementById('plannedForm');
 
-  addPlannedBtn?.addEventListener('click', () => openModal(addPlannedModal));
-  cancelPlannedBtn?.addEventListener('click', () => closeModal(addPlannedModal));
-  plannedForm?.addEventListener('submit', handleAddPlannedExpense);
+  if (addPlannedBtn) addPlannedBtn.addEventListener('click', () => openModal(addPlannedModal));
+  if (cancelPlannedBtn) cancelPlannedBtn.addEventListener('click', () => closeModal(addPlannedModal));
+  if (plannedForm) plannedForm.addEventListener('submit', handleAddPlannedExpense);
 
   // Add Paid Expense Modal
   const addPaidBtn = document.getElementById('addPaidBtn');
@@ -117,41 +109,35 @@ function setupEventListeners() {
   const cancelPaidBtn = document.getElementById('cancelPaidBtn');
   const paidForm = document.getElementById('paidForm');
 
-  addPaidBtn?.addEventListener('click', () => openModal(addPaidModal));
-  cancelPaidBtn?.addEventListener('click', () => closeModal(addPaidModal));
-  paidForm?.addEventListener('submit', handleAddPaidExpense);
+  if (addPaidBtn) addPaidBtn.addEventListener('click', () => openModal(addPaidModal));
+  if (cancelPaidBtn) cancelPaidBtn.addEventListener('click', () => closeModal(addPaidModal));
+  if (paidForm) paidForm.addEventListener('submit', handleAddPaidExpense);
 
   // Export functionality
   const exportBtn = document.getElementById('exportBtn');
-  exportBtn?.addEventListener('click', exportData);
+  if (exportBtn) exportBtn.addEventListener('click', exportData);
 
   // Search functionality
   const searchInput = document.getElementById('searchInput');
-  searchInput?.addEventListener('input', handleSearch);
+  if (searchInput) searchInput.addEventListener('input', handleSearch);
 
   // Filter functionality
   const filterBtns = document.querySelectorAll('.filter-btn');
   filterBtns.forEach(btn => {
     btn.addEventListener('click', () => handleFilter(btn.dataset.filter));
   });
-
-  // Add reset button functionality if exists
-  const resetBtn = document.getElementById('resetBtn');
-  if (resetBtn) {
-    resetBtn.addEventListener('click', resetToDefaults);
-  }
 }
 
 // Modal Functions
 function openModal(modal) {
-  modal?.classList.add('modal--active');
+  if (modal) modal.classList.add('modal--active');
 }
 
 function closeModal(modal) {
-  modal?.classList.remove('modal--active');
+  if (modal) modal.classList.remove('modal--active');
 }
 
-// Add Capital Handler
+// Add Capital Handler - MODIFIED TO SAVE
 function handleAddCapital(e) {
   e.preventDefault();
   const formData = new FormData(e.target);
@@ -166,8 +152,10 @@ function handleAddCapital(e) {
   };
 
   appState.capitalEntries.push(newCapital);
-  saveToStorage('capitalEntries', appState.capitalEntries);
-  saveToStorage('nextCapitalId', appState.nextCapitalId);
+
+  // Save to localStorage
+  saveData('capitalEntries', appState.capitalEntries);
+  saveData('nextCapitalId', appState.nextCapitalId);
 
   updateDashboard();
   renderCapitalTable();
@@ -177,7 +165,7 @@ function handleAddCapital(e) {
   e.target.reset();
 }
 
-// Add Planned Expense Handler
+// Add Planned Expense Handler - MODIFIED TO SAVE
 function handleAddPlannedExpense(e) {
   e.preventDefault();
   const formData = new FormData(e.target);
@@ -192,8 +180,10 @@ function handleAddPlannedExpense(e) {
   };
 
   appState.plannedExpenses.push(newExpense);
-  saveToStorage('plannedExpenses', appState.plannedExpenses);
-  saveToStorage('nextPlannedId', appState.nextPlannedId);
+
+  // Save to localStorage
+  saveData('plannedExpenses', appState.plannedExpenses);
+  saveData('nextPlannedId', appState.nextPlannedId);
 
   updateDashboard();
   renderPlannedExpensesTable();
@@ -203,7 +193,7 @@ function handleAddPlannedExpense(e) {
   e.target.reset();
 }
 
-// Add Paid Expense Handler
+// Add Paid Expense Handler - MODIFIED TO SAVE
 function handleAddPaidExpense(e) {
   e.preventDefault();
   const formData = new FormData(e.target);
@@ -218,8 +208,10 @@ function handleAddPaidExpense(e) {
   };
 
   appState.paidExpenses.push(newExpense);
-  saveToStorage('paidExpenses', appState.paidExpenses);
-  saveToStorage('nextPaidId', appState.nextPaidId);
+
+  // Save to localStorage
+  saveData('paidExpenses', appState.paidExpenses);
+  saveData('nextPaidId', appState.nextPaidId);
 
   updateDashboard();
   renderPaidExpensesTable();
@@ -229,7 +221,7 @@ function handleAddPaidExpense(e) {
   e.target.reset();
 }
 
-// Mark Planned Expense as Paid
+// Mark Planned Expense as Paid - MODIFIED TO SAVE
 function markAsPaid(plannedId) {
   const plannedExpense = appState.plannedExpenses.find(e => e.id === plannedId);
   if (!plannedExpense) return;
@@ -246,9 +238,10 @@ function markAsPaid(plannedId) {
   appState.paidExpenses.push(paidExpense);
   appState.plannedExpenses = appState.plannedExpenses.filter(e => e.id !== plannedId);
 
-  saveToStorage('plannedExpenses', appState.plannedExpenses);
-  saveToStorage('paidExpenses', appState.paidExpenses);
-  saveToStorage('nextPaidId', appState.nextPaidId);
+  // Save to localStorage
+  saveData('plannedExpenses', appState.plannedExpenses);
+  saveData('paidExpenses', appState.paidExpenses);
+  saveData('nextPaidId', appState.nextPaidId);
 
   updateDashboard();
   renderPlannedExpensesTable();
@@ -256,11 +249,11 @@ function markAsPaid(plannedId) {
   updateCharts();
 }
 
-// Delete Functions
+// Delete Functions - MODIFIED TO SAVE
 function deleteCapital(capitalId) {
   if (confirm('Are you sure you want to delete this capital entry?')) {
     appState.capitalEntries = appState.capitalEntries.filter(e => e.id !== capitalId);
-    saveToStorage('capitalEntries', appState.capitalEntries);
+    saveData('capitalEntries', appState.capitalEntries);
     updateDashboard();
     renderCapitalTable();
     updateCharts();
@@ -270,7 +263,7 @@ function deleteCapital(capitalId) {
 function deletePlannedExpense(plannedId) {
   if (confirm('Are you sure you want to delete this planned expense?')) {
     appState.plannedExpenses = appState.plannedExpenses.filter(e => e.id !== plannedId);
-    saveToStorage('plannedExpenses', appState.plannedExpenses);
+    saveData('plannedExpenses', appState.plannedExpenses);
     updateDashboard();
     renderPlannedExpensesTable();
     updateCharts();
@@ -280,7 +273,7 @@ function deletePlannedExpense(plannedId) {
 function deletePaidExpense(paidId) {
   if (confirm('Are you sure you want to delete this paid expense?')) {
     appState.paidExpenses = appState.paidExpenses.filter(e => e.id !== paidId);
-    saveToStorage('paidExpenses', appState.paidExpenses);
+    saveData('paidExpenses', appState.paidExpenses);
     updateDashboard();
     renderPaidExpensesTable();
     updateCharts();
@@ -294,10 +287,15 @@ function updateDashboard() {
   const totalPaid = appState.paidExpenses.reduce((sum, expense) => sum + expense.amount, 0);
   const remainingBalance = totalCapital - totalPlanned - totalPaid;
 
-  document.getElementById('totalCapital').textContent = formatPKR(totalCapital);
-  document.getElementById('totalPlanned').textContent = formatPKR(totalPlanned);
-  document.getElementById('totalPaid').textContent = formatPKR(totalPaid);
-  document.getElementById('remainingBalance').textContent = formatPKR(remainingBalance);
+  const totalCapitalEl = document.getElementById('totalCapital');
+  const totalPlannedEl = document.getElementById('totalPlanned');
+  const totalPaidEl = document.getElementById('totalPaid');
+  const remainingBalanceEl = document.getElementById('remainingBalance');
+
+  if (totalCapitalEl) totalCapitalEl.textContent = formatPKR(totalCapital);
+  if (totalPlannedEl) totalPlannedEl.textContent = formatPKR(totalPlanned);
+  if (totalPaidEl) totalPaidEl.textContent = formatPKR(totalPaid);
+  if (remainingBalanceEl) remainingBalanceEl.textContent = formatPKR(remainingBalance);
 
   // Update financial health indicator
   const healthIndicator = document.querySelector('.financial-health');
